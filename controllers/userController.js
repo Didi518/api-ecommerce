@@ -4,6 +4,8 @@ const { generateToken } = require('../config/jwToken');
 const validateMongoDbId = require('../utils/validateMongoDbId');
 const { generateRefreshToken } = require('../config/refreshToken');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const sendEmail = require('./emailController');
 
 // Création d'un nouveau compte
 const createUser = asyncHandler(async (req, res) => {
@@ -22,7 +24,7 @@ const createUser = asyncHandler(async (req, res) => {
 // Connexion d'un user
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  // check si le user existe ou non
+  // check if user exists or not
   const findUser = await User.findOne({ email });
   if (findUser && (await findUser.isPasswordMatched(password))) {
     const refreshToken = generateRefreshToken(findUser?._id);
@@ -185,15 +187,69 @@ const unblockUser = asyncHandler(async (req, res) => {
   }
 });
 
+const updatePassword = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { password } = req.body;
+  validateMongoDbId(_id);
+  const user = await User.findById(_id);
+  if (password) {
+    user.password = password;
+    const updatedPassword = await user.save();
+    res.json(updatedPassword);
+  } else {
+    res.json(user);
+  }
+});
+
+const forgotPasswordToken = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) throw new Error('E-mail utilisateur introuvable');
+  try {
+    const token = await user.createPasswordResetToken();
+    await user.save();
+    const resetURL = `Bonjour, merci de cliquer sur ce lien pour réinitialiser votre mot de passe. Ce lien est valide 10 minutes depuis réception de ce mail. <a href="http://localhost:8080/api/user/reset-password/${token}">Cliquez ici</a>`;
+    const data = {
+      to: email,
+      text: 'Cher utilisateur',
+      subject: 'Mot de passe oublié',
+      htm: resetURL,
+    };
+    sendEmail(data);
+    res.json(token);
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+  const { token } = req.params;
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: Date.now() },
+  });
+  if (!user) throw new Error('Token expiré. Merci de réessayer plus tard.');
+  user.password = password;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+  res.json(user);
+});
+
 module.exports = {
   blockUser,
   createUser,
   deleteUser,
+  forgotPasswordToken,
   getAllUsers,
   getUser,
   handleRefreshToken,
   loginUser,
   logout,
+  resetPassword,
   unblockUser,
+  updatePassword,
   updateUser,
 };
