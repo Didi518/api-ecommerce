@@ -1,6 +1,5 @@
 const userController = require('../controllers/userController');
 const { authMiddleware, isAdmin } = require('../middlewares/authMiddleware');
-
 const router = require('express').Router();
 
 router.post('/register', userController.createUser);
