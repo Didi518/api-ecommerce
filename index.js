@@ -21,6 +21,8 @@ app.use(cookieParser());
 app.use('/api/user', require('./routes/authRoutes'));
 app.use('/api/product', require('./routes/productRoutes'));
 app.use('/api/blog', require('./routes/blogRoutes'));
+app.use('/api/prod-category', require('./routes/productCategoryRoutes'));
+app.use('/api/blog-category', require('./routes/blogCategoryRoutes'));
 
 app.use(notFound);
 app.use(errorHandler);
