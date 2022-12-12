@@ -5,6 +5,8 @@ const router = require('express').Router();
 router.post('/', authMiddleware, isAdmin, productController.createProduct);
 router.get('/:id', productController.getProduct);
 router.get('/', productController.getAllProducts);
+router.put('/wishlist', authMiddleware, productController.addToWishList);
+router.put('/rating', authMiddleware, productController.rating);
 router.put('/:id', authMiddleware, isAdmin, productController.updateProduct);
 router.delete('/:id', authMiddleware, isAdmin, productController.deleteProduct);
 
