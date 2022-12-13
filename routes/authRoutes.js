@@ -6,12 +6,20 @@ const router = require('express').Router();
 router.post('/register', userController.createUser);
 router.post('/forgot-password-token', userController.forgotPasswordToken);
 router.put('/reset-password/:token', userController.resetPassword);
+router.put(
+  '/order/update/:id',
+  authMiddleware,
+  isAdmin,
+  userController.updateOrderStatus
+);
 router.put('/password', authMiddleware, userController.updatePassword);
 router.post('/login', userController.loginUser);
 router.post('/admin-login', userController.loginAdmin);
 router.post('/cart/apply', authMiddleware, userController.applyCoupon);
+router.post('/cart/cash-order', authMiddleware, userController.createOrder);
 router.post('/cart', authMiddleware, userController.addToCart);
 router.get('/get-all-users', userController.getAllUsers);
+router.get('/orders', authMiddleware, userController.getOrders);
 router.get('/refresh', userController.handleRefreshToken);
 router.get('/logout', userController.logout);
 router.get('/wishlist', authMiddleware, userController.getWishlist);

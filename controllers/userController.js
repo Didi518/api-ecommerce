@@ -2,6 +2,7 @@ const User = require('../models/userModel');
 const Product = require('../models/productModel');
 const Cart = require('../models/cartModel');
 const Coupon = require('../models/couponModel');
+const Order = require('../models/orderModel');
 const asyncHandler = require('express-async-handler');
 const { generateToken } = require('../config/jwToken');
 const validateMongoDbId = require('../utils/validateMongoDbId');
@@ -9,6 +10,7 @@ const { generateRefreshToken } = require('../config/refreshToken');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const sendEmail = require('./emailController');
+const uniqid = require('uniqid');
 
 // Création d'un nouveau compte
 const createUser = asyncHandler(async (req, res) => {
@@ -386,15 +388,93 @@ const applyCoupon = asyncHandler(async (req, res) => {
   res.json(totalAfterDiscount);
 });
 
+const createOrder = asyncHandler(async (req, res) => {
+  const { COD, couponApplied } = req.body;
+  const { _id } = req.user;
+  validateMongoDbId(_id);
+  try {
+    if (!COD) throw new Error('Création du règlement à la livraison échouée.');
+    const user = await User.findById(_id);
+    let userCart = await Cart.findOne({ orderBy: user._id });
+    let finalAmount = 0;
+    if (couponApplied && userCart.totalAfterDiscount) {
+      finalAmount = userCart.totalAfterDiscount;
+    } else {
+      finalAmount = userCart.cartTotal;
+    }
+    let newOrder = await new Order({
+      products: userCart.products,
+      paymentIntent: {
+        id: uniqid(),
+        method: 'COD',
+        amount: finalAmount,
+        status: 'Règlement à la livraison',
+        created: Date.now(),
+        currency: 'eur',
+      },
+      orderBy: user._id,
+      orderStatus: 'Règlement à la livraison',
+    }).save();
+    let update = userCart.products.map((item) => {
+      return {
+        updateOne: {
+          filter: { _id: item.product._id },
+          update: { $inc: { quantity: -item.count, sold: +item.count } },
+        },
+      };
+    });
+    const updated = await Product.bulkWrite(update, {});
+    res.json({ message: 'succès' });
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const getOrders = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  validateMongoDbId(_id);
+  try {
+    const userOrders = await Order.findOne({ orderBy: _id })
+      .populate('products.product')
+      .exec();
+    res.json(userOrders);
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
+const updateOrderStatus = asyncHandler(async (req, res) => {
+  const { status } = req.body;
+  const { id } = req.params;
+  validateMongoDbId(id);
+  try {
+    const updatedOrderStatus = await Order.findByIdAndUpdate(
+      id,
+      {
+        orderStatus: status,
+        paymentIntent: {
+          status: status,
+        },
+      },
+      { new: true }
+    );
+    res.json(updatedOrderStatus);
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
 module.exports = {
   applyCoupon,
   addToCart,
   blockUser,
+  createOrder,
   createUser,
   deleteUser,
   emptyCart,
   forgotPasswordToken,
   getAllUsers,
+  getOrders,
   getUser,
   getUserCart,
   getWishlist,
@@ -405,6 +485,7 @@ module.exports = {
   resetPassword,
   saveAddress,
   unblockUser,
+  updateOrderStatus,
   updatePassword,
   updateUser,
 };
