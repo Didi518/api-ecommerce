@@ -2,6 +2,9 @@ const asyncHandler = require('express-async-handler');
 const { default: slugify } = require('slugify');
 const Product = require('../models/productModel');
 const User = require('../models/userModel');
+const validateMongoDbId = require('../utils/validateMongoDbId');
+const cloudinaryUploadImg = require('../utils/cloudinary');
+const fs = require('fs');
 
 const createProduct = asyncHandler(async (req, res) => {
   try {
@@ -17,6 +20,7 @@ const createProduct = asyncHandler(async (req, res) => {
 
 const updateProduct = asyncHandler(async (req, res) => {
   const id = req.params;
+  validateMongoDbId(id);
   try {
     if (req.body.title) {
       req.body.slug = slugify(req.body.title);
@@ -32,6 +36,7 @@ const updateProduct = asyncHandler(async (req, res) => {
 
 const deleteProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  validateMongoDbId(id);
   try {
     const deletedProduct = await Product.findByIdAndDelete(id);
     res.json(deletedProduct);
@@ -42,6 +47,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
 
 const getProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  validateMongoDbId(id);
   try {
     const findProduct = await Product.findById(id);
     res.json(findProduct);
@@ -93,6 +99,7 @@ const getAllProducts = asyncHandler(async (req, res) => {
 
 const addToWishList = asyncHandler(async (req, res) => {
   const { _id } = req.user;
+  validateMongoDbId(id);
   const { prodId } = req.body;
   try {
     const user = await User.findById(_id);
@@ -123,6 +130,7 @@ const addToWishList = asyncHandler(async (req, res) => {
 
 const rating = asyncHandler(async (req, res) => {
   const { _id } = req.user;
+  validateMongoDbId(id);
   const { star, prodId, comment } = req.body;
   try {
     const product = await Product.findById(prodId);
@@ -149,7 +157,7 @@ const rating = asyncHandler(async (req, res) => {
             ratings: {
               star: star,
               comment: comment,
-              postedBy: _id,
+              postedby: _id,
             },
           },
         },
@@ -177,6 +185,34 @@ const rating = asyncHandler(async (req, res) => {
   }
 });
 
+const uploadImages = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  validateMongoDbId(id);
+  try {
+    const uploader = (path) => cloudinaryUploadImg(path, 'images');
+    const urls = [];
+    const files = req.files;
+    for (const file of files) {
+      const { path } = file;
+      const newPath = await uploader(path);
+      urls.push(newPath);
+      fs.unlinkSync(path);
+    }
+    const findProduct = await Product.findByIdAndUpdate(
+      id,
+      {
+        images: urls.map((file) => {
+          return file;
+        }),
+      },
+      { new: true }
+    );
+    res.json(findProduct);
+  } catch (error) {
+    throw new Error(error);
+  }
+});
+
 module.exports = {
   addToWishList,
   createProduct,
@@ -185,4 +221,5 @@ module.exports = {
   getProduct,
   rating,
   updateProduct,
+  uploadImages,
 };
