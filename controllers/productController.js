@@ -130,7 +130,7 @@ const addToWishList = asyncHandler(async (req, res) => {
 
 const rating = asyncHandler(async (req, res) => {
   const { _id } = req.user;
-  validateMongoDbId(id);
+  validateMongoDbId(_id);
   const { star, prodId, comment } = req.body;
   try {
     const product = await Product.findById(prodId);
@@ -157,7 +157,7 @@ const rating = asyncHandler(async (req, res) => {
             ratings: {
               star: star,
               comment: comment,
-              postedby: _id,
+              postedBy: _id,
             },
           },
         },
